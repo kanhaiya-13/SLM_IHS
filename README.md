@@ -1,135 +1,139 @@
 # Vector-Borne Disease Outbreak Forecasting (FYP)
 
-An early-warning system that predicts vector-borne disease outbreaks (Dengue, Chikungunya, Malaria) **4–6 weeks in advance** for Indian states using a **PatchTST-style Time-Series Transformer**.
+An early-warning surveillance system that predicts vector-borne disease outbreaks (Dengue, Chikungunya, Malaria) **4–6 weeks in advance** for Indian states (**Maharashtra**, **Karnataka**, **Tamil Nadu**) using a **PatchTST-style Time-Series Transformer** with a dedicated **FastAPI Backend** and **React + TypeScript Frontend Dashboard**.
 
 ---
 
-## Project Structure
+## 🚀 How to Run for the Viva / Demo
+
+The application runs locally in two lightweight processes (Backend + Frontend):
+
+### Step 1: Start the FastAPI Backend
+
+```bash
+# In project root:
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+```
+- **Backend API**: [http://localhost:8000](http://localhost:8000)
+- **Interactive Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### Step 2: Start the React Frontend
+
+Open a second terminal:
+```bash
+cd frontend
+npm install   # (only once)
+npm run dev
+```
+- **Frontend Dashboard**: [http://localhost:5173](http://localhost:5173)
+
+---
+
+## 📋 Viva Presentation & Demonstration Walkthrough
+
+When presenting to examiners during the viva, follow this 4-stage click-through flow:
+
+### Stage 1: Public Health Surveillance & Risk Dashboard
+1. Open [http://localhost:5173](http://localhost:5173).
+2. Point out the **Persistent Disclaimer Banner** at the top: explain that the model operates on IDSP historical reports (2009–2022) with clear acknowledgment of reporting constraints and no live stream assumptions.
+3. Review **Maharashtra**:
+   - Show the **Risk Assessment Gauge** (e.g. Low/Moderate/High risk bucket with exact decimal probability and clear threshold guidance).
+   - Point out the **Input Window Tag** (`2022-W41 to 2022-W52`) and **Forecast Horizon** (`Weeks t+4..t+6: 2023-W04 to 2023-W06`).
+   - Examine the **Per-Lead-Week Confidence Breakdown** ($t+4, t+5, t+6$).
+   - Click **"Inspect 12-Week Model Input Window"** to show what multi-channel features were passed to the Transformer.
+4. Switch to **Tamil Nadu** or **Karnataka** using the state selector tabs to demonstrate state-specific models and varying risk levels.
+
+### Stage 2: Meteorological & Epidemiological History (24 Weeks)
+1. In the **Surveillance History Chart**, show the multi-variate trend over time.
+2. Toggle the **Rainfall (Precipitation)**, **Temperature**, and **Vegetation (LAI)** overlays.
+3. Hover over the red outbreak markers to explain how IDSP-confirmed outbreaks align with pre-monsoon precipitation spikes.
+4. Toggle between 12W, 24W, and 52W time horizons.
+
+### Stage 3: Scenario Laboratory ("What-If" Sensitivity Simulator)
+1. Click the **"Scenario Simulator"** tab.
+2. Demonstrate how surveillance officers can test hypothetical conditions when no live feed exists:
+   - Click **"Monsoon Surge (+75mm rain)"**: show rainfall and vegetation rise in weeks 8–12.
+   - Click **"Run Forecast Simulation"**: observe the live output and the $\Delta\%$ risk increase badge.
+   - Click **"Case Cluster (+50 cases)"**: demonstrate sudden late surge impact on $t+4..t+6$ risk.
+   - Click **"Reset Baseline"** to return to actual historical records.
+   - Edit any specific cell directly in the table to test custom values.
+
+### Stage 4: Model Transparency & Auditability Panel
+1. Click the **"Model Transparency & Audit"** tab.
+2. Highlight that the model is **NOT a black box**:
+   - Plain-English officer verdict: *"On held-out test data (2021–2022), this model identified 90.6% of actual outbreak windows (Recall) with 71.6% Precision and 0.847 PR-AUC."*
+   - Review the **Held-Out Test Set Metrics Table** across Window, $t+4, t+5, t+6$.
+   - Review the **Benchmark Comparison** demonstrating that PatchTST outperforms LSTM and Persistence baselines.
+   - Explain the architectural decision (Channel-Independent attention prevents noisy sensor channels from corrupting case autocorrelation).
+
+---
+
+## 🏗️ Architecture & Project Structure
 
 ```
 SLM_IHS/
-├── data/
-│   ├── raw/EpiClim.csv          ← IDSP outbreak + weather data (2009–2022)
-│   └── processed/               ← generated state-week grids + tensors (auto-created)
+├── backend/
+│   ├── main.py                  ← FastAPI server & CORS setup
+│   ├── schemas.py               ← Pydantic v2 request/response schemas
+│   ├── inference.py             ← Checkpoint loading, feature engineering, prediction
+│   ├── test_endpoints.py        ← Automated endpoint test suite
+│   ├── requirements.txt         ← Backend Python dependencies
+│   └── README.md
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── Header.tsx                 ← Navigation, disclaimer banner, state switcher
+│   │   │   ├── RiskDashboard.tsx          ← Risk meter, per-lead cards, input inspector
+│   │   │   ├── HistoricalTrendChart.tsx   ← Interactive Recharts multi-variate trends
+│   │   │   ├── ScenarioSimulator.tsx      ← "What-If" preset and custom simulator
+│   │   │   ├── ModelTransparencyPanel.tsx ← Test metrics, baselines, architecture audit
+│   │   │   └── Footer.tsx                 ← Prototype disclaimer
+│   │   ├── services/api.ts                ← API client calling FastAPI endpoints
+│   │   ├── types/index.ts                 ← TypeScript interfaces
+│   │   ├── App.tsx                        ← Tab orchestration & state management
+│   │   └── index.css                      ← Dark-mode surveillance design system
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── README.md
 ├── src/
-│   ├── config.py                ← central config (states, splits, model hyperparams)
-│   ├── data_pipeline.py         ← §1: grid construction, labels, normalization, splitting
-│   ├── baselines.py             ← §2: persistence + LSTM classifier baselines
-│   ├── model.py                 ← §3: PatchTST-style Transformer + LSTM model definitions
-│   ├── train.py                 ← §4: training loop (AdamW, cosine LR, early stopping)
-│   ├── evaluate.py              ← §4: metrics, ablation table, plots
-│   ├── generate_summary.py      ← generates RESULTS_SUMMARY.md from actual metrics
-│   └── run_all.py               ← top-level orchestrator (runs steps 1–5 in order)
+│   ├── config.py                ← Central config (states, window size, hyperparams)
+│   ├── data_pipeline.py         ← Grid construction, scalers, sliding windows
+│   ├── model.py                 ← PatchTST Transformer & LSTM architectures
+│   ├── train.py                 ← Training loop (AdamW, cosine LR, BCEWithLogits)
+│   ├── evaluate.py              ← Test set evaluation & ablation matrix
+│   └── generate_summary.py      ← Plain-language results generator
+├── data/
+│   ├── raw/EpiClim.csv          ← Raw IDSP data (2009–2022)
+│   └── processed/               ← Serialized pickle grids and scalers per state
 ├── results/
-│   ├── checkpoints/             ← best model per state per ablation config
-│   ├── logs/                    ← loss curves (.json), training summaries
-│   └── plots/                   ← loss curves, lead-week degradation, ablation heatmap
-├── RESULTS_SUMMARY.md           ← auto-generated plain-language results (§5)
-└── requirements.txt
+│   ├── checkpoints/             ← Best trained model weights per state
+│   ├── ablation_table.csv       ← Full ablation results across 15 configurations
+│   ├── baseline_results.csv     ← LSTM & persistence baseline results
+│   └── plots/                   ← Loss curves, lead-week degradation plots
+├── RESULTS_SUMMARY.md           ← Complete summary of research findings
+└── README.md                    ← Top-level guide (this file)
 ```
 
 ---
 
-## Quick Start
+## 🧪 Automated Testing
 
-### 1. Install Dependencies
+To verify the backend and frontend:
 
 ```bash
-# Core packages
-python -m pip install pandas numpy scikit-learn matplotlib seaborn statsmodels
+# 1. Backend test suite
+python backend/test_endpoints.py
 
-# PyTorch (match to your CUDA version — see https://pytorch.org/get-started/locally/)
-python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
-```
-
-### 2. Run the Full Pipeline
-
-```bash
-# Full pipeline: data → baselines → training + full ablations → evaluation → summary
-python src/run_all.py
-
-# Faster: skip full ablation matrix, run only default config
-python src/run_all.py --no-ablations
-```
-
-### 3. Step-by-Step
-
-```bash
-# Step 1: Build processed data grids
-python src/data_pipeline.py
-
-# Step 2: Run baselines (persistence + LSTM)
-python src/baselines.py --all-states
-
-# Step 3: Train Transformer (default config)
-python src/train.py --all-states
-
-# Step 4: Evaluate + generate all plots
-python src/evaluate.py --all-states
-
-# Step 4 (alternative): Full ablation matrix (trains missing configs then evaluates)
-python src/evaluate.py --all-states --run-ablations
-
-# Step 5: Generate RESULTS_SUMMARY.md
-python src/generate_summary.py
-```
-
-### 4. Ablation-specific training
-
-```bash
-# Ablation: channel-mixing (not channel-independent)
-python src/train.py --state Maharashtra --no-channel-independent --tag CM_W_C
-
-# Ablation: no weather covariates
-python src/train.py --state Maharashtra --no-weather --tag CI_NW_C
-
-# Ablation: no calendar features
-python src/train.py --state Maharashtra --no-calendar --tag CI_W_NC
+# 2. Frontend build verification
+cd frontend && npm run build
 ```
 
 ---
 
-## Scope
+## 📊 Summary of Best Models Per State
 
-| Decision | Value |
-|---|---|
-| Disease group | Dengue + Chikungunya + Malaria (combined, substring-matched) |
-| Granularity | State-week (not district-week — density insufficient) |
-| States | Maharashtra, Karnataka, Tamil Nadu |
-| Train/Val/Test | 2009–2018 / 2019–2020 / 2021–2022 |
-| Input window | 12 weeks |
-| Forecast horizon | t+4 to t+6 (window label = any outbreak in that 3-week window) |
-| Channels | cases (log1p), preci, LAI, Temp, week sin/cos, month, monsoon flag |
-
----
-
-## Model Architecture
-
-**PatchTST-style encoder-only Transformer:**
-- 4-week patches → 3 patches from 12-week window
-- Channel-independent design (default): each channel's patch sequence processed through shared Transformer weights separately
-- Calendar-aware patch embeddings (learnable positional + sinusoidal week encoding)
-- Classification head: sigmoid over mean-pooled representation
-- Multi-task head: per-lead-week (t+4, t+5, t+6) probability outputs
-
----
-
-## Ablation Matrix (§4)
-
-| Config tag | Channel mode | Weather | Calendar |
-|---|---|---|---|
-| CI_W_C (default) | Independent | ✓ | ✓ |
-| CM_W_C | Mixing | ✓ | ✓ |
-| CI_W_NC | Independent | ✓ | ✗ |
-| CI_NW_C | Independent | ✗ | ✓ |
-| CI_NW_NC | Independent | ✗ | ✗ |
-
----
-
-## Known Limitations
-
-See `RESULTS_SUMMARY.md §3` for a detailed discussion. In brief:
-- Label reflects IDSP reporting/confirmation behaviour, not ground-truth incidence
-- Google Trends not yet integrated (placeholder reserved in pipeline + model)
-- Wastewater out of scope (epidemiologically appropriate — vector-borne, not fecal-oral)
-- 3-state / 3-disease scope; pipeline is generic over `STATES` list in `config.py`
+| State | Best Config | Precision | Recall | F1 | ROC-AUC | PR-AUC |
+|---|---|---|---|---|---|---|
+| **Maharashtra** | PatchTST (`CI_W_NC`) | **0.716** | **0.906** | **0.800** | 0.779 | **0.847** |
+| **Karnataka** | PatchTST (`CI_W_C`) | 0.059 | 0.056 | 0.057 | 0.509 | **0.202** |
+| **Tamil Nadu** | PatchTST (`CM_W_C`) | 0.295 | **0.947** | **0.450** | **0.734** | **0.475** |
