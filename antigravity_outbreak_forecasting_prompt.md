@@ -18,7 +18,7 @@ defended in a viva.
 ## 1. Data
 
 ### 1.1 Source files
-- `EpiClim.csv` (a.k.a. `Final_data.csv`) — primary dataset. Columns include:
+- `EpiClim.csv` — primary dataset. Columns include:
   `week_of_outbreak` (text, e.g. "1st week"), `state_ut`, `district`, `Disease`, `Cases`
   (string, needs numeric coercion), `Deaths`, `day`, `mon`, `year`, `Latitude`, `Longitude`,
   `preci`, `LAI`, `Temp`.
